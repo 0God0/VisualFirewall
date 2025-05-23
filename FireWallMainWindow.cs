@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Net.Sockets;
+using System.Windows.Forms;
 
 namespace VisualFirewall {
     public partial class FireWallWindow : Form {
@@ -17,7 +18,13 @@ namespace VisualFirewall {
 
         private void FireWallWindow_Load(object sender, EventArgs e) {
             //TODO: 动态读取屏蔽端口
-            fireWallBlock = new FireWallBlockPort(new List<int> { 25101,20602 });
+            fireWallBlock = new FireWallBlockPort(new List<int> { 25101, 20602 }, message => infoBox.Text += message + Environment.NewLine);
+            Task.Run(() => {
+                while (true) {
+                    ipBlockCountLable.Text = fireWallBlock.getBlockedIPCount().ToString();
+                    Thread.Sleep(1000);
+                }
+            });
         }
 
         public static string GenerateRandomIp() {
@@ -34,20 +41,36 @@ namespace VisualFirewall {
 
         private void startMonitoring_Click(object sender, EventArgs e) {
 
-            var detectedIps = new List<string>() {
-                "1.1.1.1"
-            };
-            //var detectedIps = new List<string>();
-            //for (int i = 0; i < 10000; i++) detectedIps.Add(GenerateRandomIp());
-            try {
-                fireWallBlock.UpdateBlocklist(detectedIps);
-                infoBoxLable.Text += $"已屏蔽 {detectedIps.Count} 个IP\n";
-            } catch (UnauthorizedAccessException) {
-                infoBoxLable.Text += "请以管理员身份运行程序\n";
-            } catch (Exception ex) {
-                infoBoxLable.Text += $"发生错误: {ex.Message}\n";
-            }
 
+
+        }
+
+        private async void addIPButton_Click(object sender, EventArgs e) {
+            addIPButton.Enabled = false;
+            HashSet<string> ip = new HashSet<string>();
+            ip.Add(ipInput.Text.Trim());
+            await Task.Run(() => fireWallBlock.addIPs(ip));
+            addIPButton.Enabled = true;
+        }
+
+        private async void remIPButton_Click(object sender, EventArgs e) {
+            remIPButton.Enabled = false;
+            HashSet<string> ip = new HashSet<string>();
+            ip.Add(ipInput.Text.Trim());
+            await Task.Run(() => fireWallBlock.removeIPs(ip));
+            remIPButton.Enabled = true;
+        }
+
+        private void infoBox_TextChanged(object sender, EventArgs e) {
+            if (infoBox.Text.Length > 2000) {
+                infoBox.Text = string.Empty;
+            }
+            infoBox.SelectionStart = infoBox.Text.Length;
+            infoBox.ScrollToCaret();
+        }
+
+        private void reLoadButton_Click(object sender, EventArgs e) {
+            ipBlockCountLable.Text = fireWallBlock.getBlockedIPCount().ToString();
         }
     }
 }
